@@ -35,7 +35,7 @@
     ".next/types/**/*.ts",
     "**/*.ts",
     "**/*.tsx"
-  ],
+, "src/app/admin/users/components/UserFormModal.tsx"  ],
   "exclude": [
     "node_modules"
   ]
