@@ -24,7 +24,7 @@ const Contact = () => {
     e.preventDefault(); // Mencegah halaman refresh
 
     // Nomor WhatsApp Admin (Ganti dengan nomormu)
-    const phoneNumber = "6285607910959";
+    const phoneNumber = "6285704975053";
 
     // Format pesan yang akan dikirim ke WA
     const textMessage = `
@@ -33,9 +33,9 @@ Halo Admin Create.tif! 👋
 Saya ingin konsultasi lewat website.
 Berikut data saya:
 
-👤 Nama: ${formData.name}
-📧 Email: ${formData.email}
-📝 Pesan: ${formData.message}
+ Nama: ${formData.name}
+ Email: ${formData.email}
+ Pesan: ${formData.message}
 
 Mohon dibantu ya. Terima kasih!
     `;

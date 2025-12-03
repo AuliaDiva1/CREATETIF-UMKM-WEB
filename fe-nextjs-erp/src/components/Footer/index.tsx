@@ -135,13 +135,18 @@ const Footer = () => {
                     </Link>
                   </li>
                   <li>
-                    <a href="https://wa.me/6285607910959" className="mb-4 inline-block text-base text-body-color duration-300 hover:text-primary dark:text-body-color-dark dark:hover:text-primary">
+                    <a href="https://wa.me/6285704975053" className="mb-4 inline-block text-base text-body-color duration-300 hover:text-primary dark:text-body-color-dark dark:hover:text-primary">
                       WhatsApp
                     </a>
                   </li>
                   <li>
-                    <a href="mailto: createtif04@gmail.com" className="mb-4 inline-block text-base text-body-color duration-300 hover:text-primary dark:text-body-color-dark dark:hover:text-primary">
-                      Email
+                  <a 
+                    href="https://mail.google.com/mail/?view=cm&fs=1&to=createtif1@gmail.com&su=Tanya%20Jasa&body=Halo,%20saya%20tertarik%20dengan%20jasa%20Anda."
+                    target="_blank"
+                    className="mb-4 inline-block text-base text-body-color duration-300 hover:text-primary dark:text-body-color-dark dark:hover:text-primary"
+                  >
+                    Email 
+
                     </a>
                   </li>
                 </ul>

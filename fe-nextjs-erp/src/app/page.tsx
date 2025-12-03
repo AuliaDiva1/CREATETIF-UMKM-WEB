@@ -24,7 +24,6 @@ export default function Home() {
       <ScrollUp />
       <Hero />
       <Features />
-      <Video />
       
       {/* --- PERBAIKAN DI SINI (Disembunyikan sementara) --- */}
       {/* <Brands /> */}

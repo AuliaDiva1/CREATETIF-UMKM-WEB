@@ -1,11 +1,18 @@
-// src/components/Services/ArIntegrationSection.tsx
-"use client"; // Jangan lupa directive ini jika Anda belum menambahkannya
+"use client";
 
 import SectionTitle from "../Common/SectionTitle";
 import FluidGlass from './FluidGlass';
-import React, { Suspense } from 'react'; // Tambahkan Suspense lagi jika Anda menghapusnya
+import React, { Suspense, useState, useEffect } from 'react';
 
 const ArIntegrationSection = () => {
+  // State untuk memastikan komponen hanya dirender di sisi klien (browser)
+  // Ini mencegah grafik 3D muncul lalu hilang karena konflik rendering server-klien
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   return (
     <section id="ar-integration" className="py-16 md:py-20 lg:py-28 bg-gray-100 dark:bg-dark overflow-hidden">
       <div className="container">
@@ -13,31 +20,35 @@ const ArIntegrationSection = () => {
           {/* Bagian Kiri - Ilustrasi 3D */}
           <div className="w-full px-4 lg:w-1/2">
             <div
-              className="wow fadeInUp relative mx-auto mb-12 aspect-[25/24] max-w-[500px] text-center lg:m-0"
-              data-wow-delay=".15s"
+              className="relative mx-auto mb-12 aspect-[25/24] max-w-[500px] text-center lg:m-0"
+              style={{ opacity: 1, visibility: 'visible' }} // Memaksa elemen tetap terlihat
             >
-              <div className="absolute inset-0 h-full w-full rounded-2xl overflow-hidden bg-gray-200 dark:bg-gray-800">
-                <Suspense fallback={<div>Loading 3D model...</div>}> {/* Pertahankan Suspense untuk stabilitas */}
-                   <FluidGlass
-                      mode="cube"
-                      lensProps={{
-                        scale: 0.25,
-                        ior: 1.15,
-                        thickness: 5,
-                        chromaticAberration: 0.1,
-                        anisotropy: 0.01
-                      }}
-                      cubeProps={{
-                          // NAIKKAN SKALA OBJEK KACA
-                          scale: 0.5, // Ditingkatkan dari 0.3 menjadi 0.5 (atau coba nilai lain seperti 0.7)
-                          ior: 1.2,
-                          thickness: 3,
-                          chromaticAberration: 0.15,
-                          anisotropy: 0.1
-                      }}
-                      // barProps={}
-                    />
-                </Suspense>
+              <div className="absolute inset-0 h-full w-full rounded-2xl overflow-hidden bg-gray-200 dark:bg-gray-800 shadow-inner">
+                {/* Render Conditional: Hanya tampilkan 3D jika sudah mounted di browser */}
+                {isMounted ? (
+                  <Suspense 
+                    fallback={
+                      <div className="flex h-full w-full items-center justify-center text-sm text-gray-500">
+                        Memuat Visual 3D...
+                      </div>
+                    }
+                  >
+                      <FluidGlass
+                        cubeProps={{
+                            scale: 0.5,
+                            ior: 1.2,
+                            thickness: 3,
+                            chromaticAberration: 0.15,
+                            anisotropy: 0.1
+                        }}
+                      />
+                  </Suspense>
+                ) : (
+                  // Tampilan placeholder statis saat loading awal (mencegah kedipan)
+                  <div className="flex h-full w-full items-center justify-center bg-gray-200 dark:bg-gray-800">
+                     <span className="text-gray-400">Loading...</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>

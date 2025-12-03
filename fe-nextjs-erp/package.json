@@ -16,6 +16,7 @@
     "eslint": "^9.24.0",
     "eslint-config-next": "15.1.6",
     "formik": "^2.4.9",
+    "framer-motion": "^12.23.24",
     "maath": "^0.10.8",
     "next": "^15.3.0",
     "next-themes": "^0.2.1",

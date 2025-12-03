@@ -20,7 +20,7 @@ const NewsLatterBox = () => {
         
         {/* Tombol WhatsApp */}
         <a
-          href="https://wa.me/6285607910959?text=Halo%20Create.tif,%20saya%20mau%20tanya-tanya%20dulu%20dong."
+          href="https://wa.me/6285704975053?text=Halo%20Create.tif,%20saya%20mau%20tanya-tanya%20dulu%20dong."
           target="_blank"
           className="flex w-full cursor-pointer items-center justify-center rounded-md bg-[#25D366] px-9 py-4 text-base font-medium text-white shadow-submit duration-300 hover:bg-[#25D366]/90"
         >
@@ -33,7 +33,7 @@ const NewsLatterBox = () => {
 
         {/* Tombol Instagram */}
         <a
-          href="https://www.instagram.com/createtif1/"
+          href="https://www.instagram.com/createtif.id/"
           target="_blank"
           className="flex w-full cursor-pointer items-center justify-center rounded-md bg-gradient-to-r from-[#833ab4] via-[#fd1d1d] to-[#fcb045] px-9 py-4 text-base font-medium text-white shadow-submit duration-300 hover:opacity-90"
         >
