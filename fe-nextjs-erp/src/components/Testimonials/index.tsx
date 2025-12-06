@@ -2,34 +2,31 @@ import { Testimonial } from "@/types/testimonial";
 import SectionTitle from "../Common/SectionTitle";
 import SingleTestimonial from "./SingleTestimonial";
 
-// Data Testimoni (Bisa diedit nanti sesuai klien asli)
+// Data Ucapan Terima Kasih (Menggantikan Testimoni Asli)
 const testimonialData: Testimonial[] = [
   {
     id: 1,
-    name: "Rina Susanti",
-    designation: "Owner @KeripikPedasRina",
-    content:
-      "Sejak pakai jasa foto produk dari Create.tif, tampilan toko online saya jadi jauh lebih profesional. Penjualan di marketplace naik drastis karena fotonya bikin ngiler!",
+    name: "Digitalisasi Bisnis",
+    designation: "Fokus #1 Create.tif",
+    content: "Kami berkomitmen membantu UMKM Anda bertransformasi. Website cepat, foto produk keren, dan strategi digital yang tepat akan membawa bisnis Anda ke level berikutnya.",
     image: "/images/testimonials/auth-01.png",
-    star: 5,
+    star: 0
   },
   {
     id: 2,
-    name: "Budi Santoso",
-    designation: "Founder @KopiSenja",
-    content:
-      "Website yang dibuat sangat cepat dan desainnya kekinian banget. Pelanggan jadi lebih mudah lihat menu dan reservasi tempat. Recommended buat UMKM!",
+    name: "Terima Kasih Atas Kunjungan Anda",
+    designation: "Tim Admin Create.tif",
+    content: "Kami senang Anda telah meluangkan waktu untuk mengenal kami. Semoga informasi ini bermanfaat. Jangan ragu untuk menghubungi kami untuk konsultasi gratis!",
     image: "/images/testimonials/auth-02.png",
-    star: 5,
+    star: 0
   },
   {
     id: 3,
-    name: "Citra Lestari",
-    designation: "Owner @HijabStyle",
-    content:
-      "Filter Instagram AR-nya viral banget! Banyak customer yang cobain filter hijabnya dan akhirnya beli produk aslinya. Strategi marketing yang ampuh.",
+    name: "Saatnya Naik Kelas!",
+    designation: "Pesan untuk UMKM",
+    content: "Bisnis Anda memiliki potensi besar. Dengan visual dan platform yang profesional, mari wujudkan potensi tersebut. Kami tunggu kolaborasi hebat Anda.",
     image: "/images/testimonials/auth-03.png",
-    star: 5,
+    star: 0
   },
 ];
 
@@ -38,13 +35,14 @@ const Testimonials = () => {
     <section className="dark:bg-bg-color-dark bg-gray-light relative z-10 py-16 md:py-20 lg:py-28">
       <div className="container">
         <SectionTitle
-          title="Apa Kata Partner UMKM Kami"
-          paragraph="Kepuasan partner adalah prioritas kami. Berikut adalah pengalaman mereka berkolaborasi dengan Create.tif untuk mendigitalisasi bisnis."
+          title="Pesan Hangat Dari Tim Create.tif"
+          paragraph="Kami percaya, setiap UMKM berhak naik kelas. Berikut komitmen dan ajakan kolaborasi dari kami."
           center
         />
 
         <div className="grid grid-cols-1 gap-x-8 gap-y-10 md:grid-cols-2 lg:grid-cols-3">
           {testimonialData.map((testimonial) => (
+            // Kita tetap menggunakan SingleTestimonial agar layoutnya tetap 3 kolom
             <SingleTestimonial key={testimonial.id} testimonial={testimonial} />
           ))}
         </div>

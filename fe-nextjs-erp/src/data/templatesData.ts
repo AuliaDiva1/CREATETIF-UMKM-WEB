@@ -10,20 +10,20 @@ export type Template = {
 
 
 export const allTemplates = [
-  {
+    {
     id: 1,
-    title: "Template Fashion (Koleksi Musim)",
-    category: "Fashion",
-    imageSrc: "/images/template/image.png", 
-    // Link GitHub: https://github.com/yogaardian/crea.tif
-    githubLink: "https://github.com/yogaardian/crea.tif",
-  },
-  {
-    id: 2,
     title: "Template Restoran Modern (Rasa Nusantara)",
     category: "Makanan",
     imageSrc: "/images/template/image1.png", 
     // Link GitHub: https://github.com/SyaefulEffendi/rasa-nusantara.git
-    githubLink: "https://github.com/SyaefulEffendi/rasa-nusantara.git",
+    githubLink: "http://portofolio1.createtif.id/",
+  },
+  {
+    id: 2,
+    title: "Template Fashion (Koleksi Musim)",
+    category: "Fashion",
+    imageSrc: "/images/template/image.png", 
+    // Link GitHub: https://github.com/yogaardian/crea.tif
+    githubLink: "http://portofolio2.createtif.id/",
   },
 ];
