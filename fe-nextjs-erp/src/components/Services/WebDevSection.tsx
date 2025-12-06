@@ -4,15 +4,16 @@ import SectionTitle from "../Common/SectionTitle";
 import Image from "next/image";
 import Link from "next/link";
 import { useState, useMemo } from "react";
-import { allTemplates } from "@/data/templatesData"; // <-- Import data dari file baru
+import { allTemplates } from "@/data/templatesData"; 
 
-// NOMOR WHATSAPP KAMU
-const WA_NUMBER = "6285607910959";
+// NOMOR WHATSAPP
+const WA_NUMBER = "6285704975053";
 
 const WebDevSection = () => {
+  // === DEFINISI VARIABEL YANG HILANG ===
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Logika filter pencarian
+  // === DEFINISI filteredTemplates YANG HILANG ===
   const filteredTemplates = useMemo(() => {
     if (!searchQuery) return allTemplates;
     const query = searchQuery.toLowerCase();
@@ -22,6 +23,7 @@ const WebDevSection = () => {
         template.category.toLowerCase().includes(query),
     );
   }, [searchQuery]);
+  // ======================================
 
   return (
     <section id="web-development" className="py-16 md:py-20 lg:py-28">
@@ -46,7 +48,8 @@ const WebDevSection = () => {
 
         {/* --- GALERI TEMPLATE (GRID) --- */}
         <div className="grid grid-cols-1 gap-x-8 gap-y-10 md:grid-cols-2 lg:grid-cols-3">
-          {filteredTemplates.map((template) => {
+          {/* Baris yang error sekarang sudah mengenal filteredTemplates */}
+          {filteredTemplates.map((template) => { 
             // Siapkan pesan WA
             const waMessage = `Halo Create.tif, saya tertarik untuk membuat website dengan template: *${template.title}* (Kategori: ${template.category}).`;
             const waLink = `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(
@@ -80,14 +83,15 @@ const WebDevSection = () => {
                       {template.title}
                     </h3>
                     <div className="flex flex-wrap gap-3">
-                      {/* TOMBOL 1: LIVE PREVIEW (BUKA TAB BARU) */}
+                      {/* TOMBOL 1: LIVE PREVIEW (MENGGUNAKAN LINK GITHUB) */}
                       <Link
-                        href={`/templates/${template.livePreviewSlug}`}
+                        href={template.githubLink} 
                         target="_blank"
                         className="inline-block rounded-md border border-primary px-5 py-2.5 text-base font-medium text-primary duration-300 hover:bg-primary/10"
                       >
-                        Live Preview
+                        Live Preview 
                       </Link>
+                      
                       {/* TOMBOL 2: PILIH (KE WHATSAPP) */}
                       <Link
                         href={waLink}

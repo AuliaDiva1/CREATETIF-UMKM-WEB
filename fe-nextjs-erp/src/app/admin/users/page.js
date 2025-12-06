@@ -1,11 +1,14 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
+// Impor ikon dari lucide-react
+import { Users, CheckCircle, AlertTriangle, Edit, Trash2, Plus, Loader2, ClipboardEdit, Search } from 'lucide-react'; 
 // Asumsi path impor ini benar sesuai struktur proyek Anda
 import UserFormModal from './components/UserFormModal'; 
 import { getUsers, createUser, updateUser, deleteUser } from './utils/api'; 
 // Pastikan path ini benar
 import CustomDataTable from '../../../components/DataTable'; 
+
 
 // =========================================================
 // Helper Component 1: Toast Notifier
@@ -16,12 +19,12 @@ const Toast = ({ toast }) => {
 
     const baseStyle = "fixed bottom-5 right-5 p-4 rounded-xl shadow-2xl text-white transition-opacity duration-300 z-[1000] max-w-sm";
     const style = toast.type === 'success' ? "bg-green-600" : "bg-red-600";
-    const icon = toast.type === 'success' ? "✓" : "✗"; // Menggunakan karakter unicode sederhana
+    const IconComponent = toast.type === 'success' ? CheckCircle : AlertTriangle;
 
     return (
         <div className={`${baseStyle} ${style}`}>
             <div className="flex items-start">
-                <span className="mr-3 text-2xl mt-0.5">{icon}</span>
+                <IconComponent className="h-6 w-6 mr-3 mt-0.5" />
                 <span className="font-medium">{toast.message}</span>
             </div>
         </div>
@@ -81,16 +84,13 @@ export default function UsersPage() {
     const [users, setUsers] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [selectedUser, setSelectedUser] = useState(null);
-    const [dialogMode, setDialogMode] = useState(null); // 'add' | 'edit' | 'lengkapi' | null
+    const [dialogMode, setDialogMode] = useState(null); 
     const [token, setToken] = useState('');
     const [confirmDeleteUser, setConfirmDeleteUser] = useState(null); 
     const [currentToast, setCurrentToast] = useState(null); 
+    // State baru untuk search
+    const [searchTerm, setSearchTerm] = useState(''); 
 
-    /**
-     * Menampilkan notifikasi Toast
-     * @param {string} type - 'success' atau 'error'
-     * @param {string} message - Pesan yang akan ditampilkan
-     */
     const showToast = useCallback((type, message) => {
         setCurrentToast({ type, message });
         setTimeout(() => setCurrentToast(null), 3000);
@@ -101,28 +101,22 @@ export default function UsersPage() {
     // ----------------------------------------------------
 
     useEffect(() => {
-        // Logika sederhana untuk mendapatkan token dari localStorage
         const t = localStorage.getItem('token');
         if (!t) {
-            console.warn("Token tidak ditemukan. Menggunakan token dummy.");
             setToken('dummy-token'); 
         } else {
             setToken(t);
         }
     }, []);
 
-    /**
-     * Mengambil data pengguna dari API
-     */
     const fetchUsers = useCallback(async () => {
         const activeToken = token || localStorage.getItem('token') || 'dummy-token'; 
         if (!activeToken) return;
 
         setIsLoading(true);
         try {
-            // Asumsi getUsers mengembalikan array data atau null/undefined
             const res = await getUsers(activeToken); 
-            setUsers(res || []);
+            setUsers(res || []); 
         } catch (err) {
             console.error("Gagal memuat data user:", err);
             showToast('error', 'Gagal memuat data user.');
@@ -132,14 +126,13 @@ export default function UsersPage() {
     }, [token, showToast]);
 
     useEffect(() => {
-        // Panggil fetchUsers setelah token dipastikan ada
         if (token) {
             fetchUsers();
         }
     }, [fetchUsers, token]); 
 
     // ----------------------------------------------------
-    // Modal Handlers
+    // Modal & CRUD Handlers
     // ----------------------------------------------------
 
     const handleCloseModal = useCallback(() => {
@@ -159,12 +152,12 @@ export default function UsersPage() {
                 showToast('success', 'User berhasil diupdate.');
             }
             
-            // Perbarui data tabel setelah operasi berhasil
             fetchUsers(); 
             handleCloseModal();
         } catch (err) {
             console.error("Gagal menyimpan user:", err);
-            showToast('error', 'Gagal menyimpan user.');
+            const msg = err.response?.data?.message || 'Gagal menyimpan user.';
+            showToast('error', msg);
         }
     };
 
@@ -179,7 +172,6 @@ export default function UsersPage() {
         try {
             await deleteUser(token, user.id);
             showToast('success', `User "${user.name}" berhasil dihapus.`);
-            // Update state secara lokal tanpa perlu fetch ulang seluruh data
             setUsers((prev) => prev.filter((u) => u.id !== user.id)); 
         } catch (err) {
             console.error("Gagal menghapus user:", err);
@@ -190,6 +182,21 @@ export default function UsersPage() {
     };
 
     // ----------------------------------------------------
+    // Filtering Logic (Ditambahkan)
+    // ----------------------------------------------------
+    const filteredUsers = useMemo(() => {
+        if (!searchTerm) return users;
+        const lowerCaseSearch = searchTerm.toLowerCase();
+        return users.filter(item =>
+            item.name?.toLowerCase().includes(lowerCaseSearch) ||
+            item.email?.toLowerCase().includes(lowerCaseSearch) ||
+            item.role?.toLowerCase().includes(lowerCaseSearch) ||
+            item.id?.toString().includes(lowerCaseSearch)
+        );
+    }, [users, searchTerm]);
+    // ----------------------------------------------------
+
+    // ----------------------------------------------------
     // DataTable Configuration
     // ----------------------------------------------------
 
@@ -197,57 +204,58 @@ export default function UsersPage() {
         <div className="flex gap-2 justify-center">
             {/* Tombol Edit */}
             <button
-                className="p-2 rounded-lg bg-yellow-500 text-white hover:bg-yellow-600 transition duration-150 text-sm shadow-md"
+                className="p-2 rounded-lg bg-yellow-500 text-white hover:bg-yellow-600 transition duration-150 shadow-md"
                 title="Edit User"
                 onClick={() => {
                     setSelectedUser(rowData);
                     setDialogMode('edit');
                 }}
             >
-                <span className="font-bold">E</span> {/* Ikon Sederhana: E for Edit */}
+                <Edit className="w-5 h-5" />
             </button>
             {/* Tombol Lengkapi Data */}
             <button
-                className="p-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition duration-150 text-sm shadow-md"
+                className="p-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition duration-150 shadow-md"
                 title="Lengkapi Data"
                 onClick={() => {
                     setSelectedUser(rowData);
                     setDialogMode('lengkapi');
                 }}
             >
-                <span className="font-bold">L</span> {/* Ikon Sederhana: L for Lengkapi */}
+                <ClipboardEdit className="w-5 h-5" />
             </button>
             {/* Tombol Hapus */}
             <button
-                className="p-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition duration-150 text-sm shadow-md"
+                className="p-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition duration-150 shadow-md"
                 title="Hapus User"
                 onClick={() => confirmDeletion(rowData)}
             >
-                <span className="font-bold">X</span> {/* Ikon Sederhana: X for Delete */}
+                <Trash2 className="w-5 h-5" />
             </button>
         </div>
     );
 
-    // Definisi kolom
     const userColumns = [
         { field: 'id', header: 'ID', style: { width: '60px' } },
-        { field: 'name', header: 'Name', filter: true },
-        { field: 'email', header: 'Email', filter: true },
-        { field: 'role', header: 'Role' },
+        { field: 'name', header: 'Name', filter: true, style: { minWidth: '150px' } },
+        { field: 'email', header: 'Email', filter: true, style: { minWidth: '200px' } },
+        { field: 'role', header: 'Role', style: { width: '120px' } },
         {
             field: 'created_at',
             header: 'Created At',
             body: (row) => (row.created_at ? new Date(row.created_at).toLocaleString('id-ID') : '-'),
+            style: { minWidth: '150px' }
         },
         {
             field: 'updated_at',
             header: 'Updated At',
             body: (row) => (row.updated_at ? new Date(row.updated_at).toLocaleString('id-ID') : '-'),
+            style: { minWidth: '150px' }
         },
         {
             header: 'Actions',
             body: actionBodyTemplate,
-            style: { width: '180px', textAlign: 'center' },
+            style: { width: '150px', textAlign: 'center' }, 
         },
     ];
 
@@ -260,11 +268,25 @@ export default function UsersPage() {
             <div className="max-w-7xl mx-auto bg-white dark:bg-gray-800 shadow-xl rounded-xl p-6 lg:p-8">
                 
                 <header className="mb-8 pb-4 border-b border-gray-200 dark:border-gray-700">
-                    <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white">Manajemen Pengguna</h1>
+                    <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white flex items-center">
+                         <Users className="w-8 h-8 mr-3 text-indigo-600" /> Manajemen Pengguna
+                    </h1>
                     <p className="text-gray-500 dark:text-gray-400 mt-1">Kelola daftar lengkap semua akun pengguna dalam sistem.</p>
                 </header>
 
-                <div className="flex justify-end mb-6">
+                {/* Kontrol dan Tombol Tambah dengan Input Pencarian */}
+                <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
+                    <div className="relative w-full sm:w-1/2 lg:w-1/3">
+                        <input
+                            type="text"
+                            placeholder="Cari pengguna (Nama, Email, Role)..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white transition duration-150"
+                        />
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    </div>
+
                     <button
                         className="px-6 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-150 shadow-md flex items-center gap-2"
                         onClick={() => {
@@ -272,23 +294,26 @@ export default function UsersPage() {
                             setSelectedUser(null);
                         }}
                     >
-                        <span className="text-xl leading-none">+</span>
+                        <Plus className="w-5 h-5" />
                         Tambah User Baru
                     </button>
                 </div>
 
                 {/* Area Data Table */}
                 <div className="overflow-x-auto">
-                    <CustomDataTable 
-                        data={users} 
-                        loading={isLoading} 
-                        columns={userColumns} 
-                        // Props tambahan yang mungkin tidak didukung CustomDataTable Native (dihapus/diabaikan jika tidak diimplementasikan)
-                        // globalFilterFields={['name', 'email', 'role']}
-                        // paginator={true}
-                        // rows={10}
-                        // rowsPerPageOptions={[5, 10, 25, 50]}
-                    />
+                    {isLoading ? (
+                        <div className="flex justify-center items-center h-40 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                            <Loader2 className="animate-spin w-8 h-8 text-indigo-600 mr-3" />
+                            <p className="text-lg text-gray-600 dark:text-gray-300">Memuat data pengguna...</p>
+                        </div>
+                    ) : (
+                        <CustomDataTable 
+                            // Menggunakan data yang sudah difilter
+                            data={filteredUsers} 
+                            loading={isLoading} 
+                            columns={userColumns} 
+                        />
+                    )}
                 </div>
 
                 {/* Modal Tambah/Edit/Lengkapi (UserFormModal) */}

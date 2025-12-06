@@ -68,7 +68,7 @@ const CustomDataTable = ({ data = [], loading = false, columns = [] }) => {
     if (!data || data.length === 0) {
         return (
             <div className="text-center p-6 bg-gray-50 rounded-lg border border-gray-200">
-                <p className="text-gray-600 font-semibold">Tidak ada data yang ditemukan. 🧐</p>
+                <p className="text-gray-600 font-semibold">Tidak ada data yang ditemukan. </p>
             </div>
         );
     }
@@ -122,8 +122,8 @@ const CustomDataTable = ({ data = [], loading = false, columns = [] }) => {
                                 {col.header}
                                 {/* Placeholder untuk Filter/Sort Icon */}
                                 {/* Catatan: Logika sort/filter perlu ditambahkan secara terpisah */}
-                                {col.sortable && <span className="ml-1 text-gray-400">↕️</span>} 
-                                {col.filter && <span className="ml-1 text-gray-400">🔍</span>}
+                                {col.sortable && <span className="ml-1 text-gray-400">↕</span>} 
+                                {col.filter && <span className="ml-1 text-gray-400"></span>}
                             </th>
                         ))}
                     </tr>

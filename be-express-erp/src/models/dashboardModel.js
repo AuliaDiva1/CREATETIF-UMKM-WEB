@@ -1,94 +1,74 @@
-import { db } from "../core/config/knex.js";
+// src/models/dashboardModel.js (Model yang diimpor oleh controller)
 
-export const getDashboardInfo = async () => {
-  try {
-    // Jumlah siswa
-    const jumlahSiswa = await db('master_siswa').count('* as total');
-    // Jumlah guru
-    const jumlahGuru = await db('master_guru').count('* as total');
-    // Jumlah kelas
-    const jumlahKelas = await db('master_kelas').count('* as total');
-    // Jumlah mata pelajaran
-    const jumlahMapel = await db('master_mata_pelajaran').count('* as total');
+// Asumsi path Knex instance (db)
+import { db } from '../core/config/knex.js'; 
 
-    // Statistik distribusi kelas
-    const distribusiKelas = await db('master_kelas')
-      .select('NAMA_KELAS')
-      .count('* as total')
-      .groupBy('NAMA_KELAS');
+/**
+ * Fungsi untuk mengambil semua data yang dibutuhkan untuk dashboard admin dari database.
+ */
+export const getAdminDashboardData = async () => {
+    try {
+        // 1. Total Pengguna (Users)
+        const totalUsersResult = await db('users').count('id as count').first();
+        
+        // 2. Total Klien (Clients)
+        const totalClientsResult = await db('master_klien').count('KLIEN_ID as count').first();
 
-    // Data chart untuk statistik
-    const chartData = {
-      labels: ['Siswa', 'Guru', 'Kelas', 'Mata Pelajaran'],
-      datasets: [
-        {
-          label: 'Statistik',
-          backgroundColor: ['#42A5F5', '#66BB6A', '#FFA726', '#EF5350'],
-          data: [
-            jumlahSiswa[0].total,
-            jumlahGuru[0].total,
-            jumlahKelas[0].total,
-            jumlahMapel[0].total,
-          ],
-        },
-      ],
-    };
+        // 3. Total Proyek (Projects)
+        const totalProjekResult = await db('transaksi_projek').count('PROJEK_ID as count').first();
 
-    // Tren pendaftaran siswa per hari
-    const trenSiswa = await db('master_siswa')
-      .select(db.raw('DAYOFWEEK(TGL_LAHIR) as hari'), db.raw('COUNT(*) as total'))
-      .groupBy('hari');
+        // 4. Ringkasan Status Proyek (Projects by Status)
+        const statusProjek = await db('transaksi_projek')
+            .select('STATUS')
+            .count('PROJEK_ID as total')
+            .groupBy('STATUS');
 
-    const hariLabels = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+        const statusSummary = statusProjek.reduce((acc, item) => {
+            // Memastikan STATUS default ada meskipun tidak ada data di DB
+            const statusKey = item.STATUS || 'Undefined';
+            acc[statusKey] = parseInt(item.total, 10);
+            return acc;
+        }, {
+            'In Progress': 0,
+            'Completed': 0,
+            'Pending Review': 0,
+        });
 
-    const trend = {
-      labels: hariLabels,
-      siswa: hariLabels.map((_, idx) => {
-        const found = trenSiswa.find((row) => Number(row.hari) === (idx === 0 ? 1 : idx + 1));
-        return found ? found.total : 0;
-      }),
-    };
+        // 5. Ringkasan Keuangan (Financial Summary)
+        const totalNilaiProjekResult = await db('transaksi_projek')
+            .sum('NILAI_PROJEK as totalNilai')
+            .first();
 
-    // Struktur distribusi kelas untuk chart
-    const distribusi = {
-      labels: distribusiKelas.map((r) => r.NAMA_KELAS),
-      data: distribusiKelas.map((r) => r.total),
-    };
+        const totalInvoiceResult = await db('transaksi_billing')
+            .where('TIPE_TRANSAKSI', 'INVOICE')
+            .sum('JUMLAH_TAGIHAN as totalInvoice')
+            .first();
 
-    // Return data untuk dashboard
-    return {
-      cards: [
-        {
-          title: 'Total Siswa',
-          value: jumlahSiswa[0].total,
-          color: '#42A5F5',
-          icon: 'pi pi-users',
-        },
-        {
-          title: 'Total Guru',
-          value: jumlahGuru[0].total,
-          color: '#66BB6A',
-          icon: 'pi pi-graduation-cap',
-        },
-        {
-          title: 'Total Kelas',
-          value: jumlahKelas[0].total,
-          color: '#FFA726',
-          icon: 'pi pi-school',
-        },
-        {
-          title: 'Total Mata Pelajaran',
-          value: jumlahMapel[0].total,
-          color: '#EF5350',
-          icon: 'pi pi-book',
-        },
-      ],
-      chart: chartData, // Grafik untuk siswa, guru, kelas, mata pelajaran
-      trend, // Tren pendaftaran siswa
-      distribusi, // Distribusi kelas
-    };
-  } catch (error) {
-    console.error('Error getDashboardInfo:', error);
-    throw error;
-  }
+        const totalPaymentResult = await db('transaksi_billing')
+            .where('TIPE_TRANSAKSI', 'PAYMENT')
+            .sum('JUMLAH_PEMBAYARAN as totalPayment')
+            .first();
+
+        const totalInvoice = parseFloat(totalInvoiceResult.totalInvoice || 0);
+        const totalPayment = parseFloat(totalPaymentResult.totalPayment || 0);
+
+        // Mengembalikan semua data yang dibutuhkan controller
+        return {
+            totalUsers: parseInt(totalUsersResult.count, 10) || 0,
+            totalClients: parseInt(totalClientsResult.count, 10) || 0,
+            totalProjek: parseInt(totalProjekResult.count, 10) || 0,
+            statusProjek: statusSummary,
+            totalNilaiProjek: parseFloat(totalNilaiProjekResult.totalNilai || 0),
+            keuangan: {
+                totalInvoice: totalInvoice,
+                totalPayment: totalPayment,
+                piutang: totalInvoice - totalPayment
+            }
+        };
+
+    } catch (error) {
+        // Penting: Throw error agar ditangkap oleh blok catch di controller
+        console.error('Error in getAdminDashboardData model:', error);
+        throw new Error('Database query failed: Gagal mengambil data dasbor admin.');
+    }
 };

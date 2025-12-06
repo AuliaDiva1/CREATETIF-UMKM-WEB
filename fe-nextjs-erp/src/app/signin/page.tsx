@@ -1,5 +1,6 @@
 'use client';
 import React, { useRef, useState, useCallback, useImperativeHandle, forwardRef } from "react";
+// Karena tidak ada next/navigation, kita gunakan simulasi navigateTo()
 
 // --- KOMPONEN SIMULASI UNTUK MENGATASI ERROR ALIAS PATH ---
 
@@ -121,7 +122,7 @@ const SigninPage = () => {
         const res = await fetch(LOGIN_ENDPOINT, {
           method: 'POST',
           headers: { 
-              'Content-Type': 'application/json',
+            'Content-Type': 'application/json',
           },
           body: JSON.stringify({ email, password }),
         });
@@ -130,7 +131,7 @@ const SigninPage = () => {
 
         if (!res.ok) {
           try {
-              data = await res.json();
+            data = await res.json();
           } catch (jsonError) {
             throw new Error(`Login gagal. Status HTTP: ${res.status}. Error server tak terduga.`);
           }
@@ -142,12 +143,11 @@ const SigninPage = () => {
         if (!data || !data.token || !data.user || !data.user.role) {
           toastRef.current?.showToast("01", data.message || "Login gagal, respon server tidak valid.");
           setLoading(false);
-          return;
+          return; 
         }
 
         // Pastikan role disamakan (lowercase)
-        // Dan konversi role dari backend (misal "MANAGER_PRODUKSI") menjadi format yang sama
-        const roleDariBackend = data.user.role.toLowerCase().replace(/\s/g, '_'); // Ganti spasi dengan underscore (jika ada)
+        const roleDariBackend = data.user.role.toLowerCase().replace(/\s/g, '_'); 
 
         // --- LOGIKA OTORISASI BARU DAN KETAT ---
         const redirect = roleRoutes[roleDariBackend];
@@ -162,6 +162,15 @@ const SigninPage = () => {
           return; 
         }
 
+        // --- KRUSIAL: Menyimpan KLIEN_ID untuk Dashboard ---
+        if (data.user.klienId) {
+            // Kita asumsikan KLIEN_ID dikirim dari backend sebagai data.user.klienId
+            localStorage.setItem("KLIEN_ID", String(data.user.klienId)); 
+        } else if (roleDariBackend === 'client') {
+            // Peringatan jika role client tapi KLIEN_ID tidak ada
+             console.warn("User adalah client tetapi KLIEN_ID tidak ditemukan di respon login.");
+        }
+        
         // Menyimpan data di localStorage 
         localStorage.setItem("token", data.token);
         localStorage.setItem("ROLE", data.user.role);
@@ -195,6 +204,7 @@ const SigninPage = () => {
 
   return (
     <>
+      {/* Tailwind CSS and Custom Styles */}
       <script src="https://cdn.tailwindcss.com"></script>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
@@ -318,20 +328,20 @@ const SigninPage = () => {
                       href="/" 
                       className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-indigo-600 transition-colors"
                   >
-                      <svg 
-                          width="16" 
-                          height="16" 
-                          viewBox="0 0 24 24" 
-                          fill="none" 
-                          stroke="currentColor" 
-                          strokeWidth="2" 
-                          strokeLinecap="round" 
-                          strokeLinejoin="round"
-                      >
-                          <path d="M19 12H5"/>
-                          <path d="M12 19l-7-7 7-7"/>
-                      </svg>
-                      Kembali ke Beranda
+                    <svg 
+                        width="16" 
+                        height="16" 
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        strokeWidth="2" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round"
+                    >
+                        <path d="M19 12H5"/>
+                        <path d="M12 19l-7-7 7-7"/>
+                    </svg>
+                    Kembali ke Beranda
                   </a>
                 </div>
 

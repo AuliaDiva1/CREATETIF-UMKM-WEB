@@ -58,7 +58,6 @@ const PageTransitionWrapper = ({ children }) => {
                 initial="initial"
                 animate="animate"
                 exit="exit"
-                variants={transitionVariants}
                 // Anda mungkin perlu menyesuaikan style agar animasi tidak mengganggu layout utama
                 style={{ width: '100%' }}
             >

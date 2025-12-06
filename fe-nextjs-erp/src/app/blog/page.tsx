@@ -1,99 +1,84 @@
+// src/app/blog/page.tsx (FINAL: Memperbaiki ReferenceError)
+
+'use client'; 
+
+import React, { useState, useEffect, useCallback } from "react";
+import axios from 'axios';
 import SingleBlog from "@/components/Blog/SingleBlog";
-import blogData from "@/components/Blog/blogData";
 import Breadcrumb from "@/components/Common/Breadcrumb";
+import { BlogProps } from "@/types/blog";
 
-import { Metadata } from "next";
+// Mengambil URL dari environment variable
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
-export const metadata: Metadata = {
-  title: "Blog & Wawasan | Create.tif",
-  description: "Kumpulan artikel, tips, dan wawasan profesional seputar digitalisasi UMKM, fotografi produk, website, dan AR dari Create.tif.",
-  // other metadata
-};
-
+// --- Komponen Blog Halaman Indeks ---
 const Blog = () => {
-  return (
-    <>
-      <Breadcrumb
-        pageName="Blog"
-        description="Temukan wawasan, tips, dan panduan terbaru seputar dunia digital untuk membantu bisnis Anda bertumbuh dan berkembang secara profesional."
-      />
+    // ✅ FIX: DEFINISIKAN STATE DI SINI
+    const [blogList, setBlogList] = useState<BlogProps[]>([]); 
+    const [isLoading, setIsLoading] = useState(true); // <-- isLoading Didefinisikan
+    const [error, setError] = useState<string | null>(null); // <-- error Didefinisikan
+    
+    // --- Fetch Data Blog Publik ---
+    const fetchPublishedBlog = useCallback(async () => {
+        setIsLoading(true);
+        setError(null);
+        try {
+            // Kita asumsikan API_BASE_URL sudah dikoreksi menjadi http://localhost:8100
+            const res = await axios.get(`${API_BASE_URL}/transaksi-blog`); 
+            setBlogList(res.data.data || []);
+        } catch (err) {
+            console.error("Gagal memuat data blog publik:", err);
+            setError("Gagal memuat artikel terbaru. Silakan coba refresh.");
+        } finally {
+            setIsLoading(false);
+        }
+    }, [API_BASE_URL]); // Tambahkan API_BASE_URL ke dependency array jika ada risiko berubah
 
-      <section className="pt-[120px] pb-[120px]">
-        <div className="container">
-          <div className="-mx-4 flex flex-wrap justify-center">
-            {blogData.map((blog) => (
-              <div
-                key={blog.id}
-                className="w-full px-4 md:w-2/3 lg:w-1/2 xl:w-1/3"
-              >
-                <SingleBlog blog={blog} />
-              </div>
-            ))}
-          </div>
+    useEffect(() => {
+        fetchPublishedBlog();
+    }, [fetchPublishedBlog]); 
 
-          <div className="-mx-4 flex flex-wrap" data-wow-delay=".15s">
-            <div className="w-full px-4">
-              <ul className="flex items-center justify-center pt-8">
-                <li className="mx-1">
-                  <a
-                    href="#0"
-                    className="bg-body-color/15 text-body-color hover:bg-primary flex h-9 min-w-[36px] items-center justify-center rounded-md px-4 text-sm transition hover:text-white"
-                  >
-                    Prev
-                  </a>
-                </li>
-                <li className="mx-1">
-                  <a
-                    href="#0"
-                    className="bg-body-color/15 text-body-color hover:bg-primary flex h-9 min-w-[36px] items-center justify-center rounded-md px-4 text-sm transition hover:text-white"
-                  >
-                    1
-                  </a>
-                </li>
-                <li className="mx-1">
-                  <a
-                    href="#0"
-                    className="bg-body-color/15 text-body-color hover:bg-primary flex h-9 min-w-[36px] items-center justify-center rounded-md px-4 text-sm transition hover:text-white"
-                  >
-                    2
-                  </a>
-                </li>
-                <li className="mx-1">
-                  <a
-                    href="#0"
-                    className="bg-body-color/15 text-body-color hover:bg-primary flex h-9 min-w-[36px] items-center justify-center rounded-md px-4 text-sm transition hover:text-white"
-                  >
-                    3
-                  </a>
-                </li>
-                <li className="mx-1">
-                  <span className="bg-body-color/15 text-body-color flex h-9 min-w-[36px] cursor-not-allowed items-center justify-center rounded-md px-4 text-sm">
-                    ...
-                  </span>
-                </li>
-                <li className="mx-1">
-                  <a
-                    href="#0"
-                    className="bg-body-color/15 text-body-color hover:bg-primary flex h-9 min-w-[36px] items-center justify-center rounded-md px-4 text-sm transition hover:text-white"
-                  >
-                    12
-                  </a>
-                </li>
-                <li className="mx-1">
-                  <a
-                    href="#0"
-                    className="bg-body-color/15 text-body-color hover:bg-primary flex h-9 min-w-[36px] items-center justify-center rounded-md px-4 text-sm transition hover:text-white"
-                  >
-                    Next
-                  </a>
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </section>
-    </>
-  );
+    // --- Render Loading, Error, atau Data Kosong ---
+    // ✅ Sekarang isLoading, error, dan blogList sudah didefinisikan
+    if (isLoading) {
+        // Anda bisa menampilkan indikator loading di sini
+        return <p className="text-center py-20">Memuat artikel...</p>;
+    }
+    
+    if (error) {
+        return <p className="text-center py-20 text-red-500">Error: {error}</p>;
+    }
+
+    if (blogList.length === 0) {
+        return <p className="text-center py-20">Belum ada artikel yang dipublikasikan.</p>;
+    }
+    // --- End Render Loading/Error ---
+
+    // --- Render Utama (Data Tersedia) ---
+    return (
+        <>
+            <Breadcrumb
+                pageName="Blog"
+                description="Temukan wawasan, tips, dan panduan terbaru seputar dunia digital untuk membantu bisnis Anda bertumbuh dan berkembang secara profesional."
+            />
+
+            <section className="pt-[120px] pb-[120px]">
+                <div className="container">
+                    <div className="-mx-4 flex flex-wrap justify-center">
+                        {blogList.map((blog) => (
+                            <div
+                                key={blog.BLOG_ID} 
+                                className="w-full px-4 md:w-2/3 lg:w-1/2 xl:w-1/3"
+                            >
+                                {/* TIDAK ADA LINK PEMBUNGKUS DI SINI */}
+                                <SingleBlog blog={blog} />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </section>
+        </>
+    );
 };
 
 export default Blog;
