@@ -7,10 +7,14 @@ import CustomDataTable from '../../../components/DataTable'
 import BillingFormModal from './components/BillingFormModal'; 
 import { AlertTriangle, CheckCircle, Loader2, DollarSign } from 'lucide-react';
 
+// Pastikan variabel lingkungan ini sudah disetel di file .env.local
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
 // --- Komponen Pembantu (Toast dan CustomModal) ---
 
+/**
+ * Komponen Toast untuk notifikasi pop-up.
+ */
 const Toast = ({ toast }) => {
     if (!toast) return null;
 
@@ -31,10 +35,9 @@ const Toast = ({ toast }) => {
     );
 };
 
-// CustomModal dihilangkan karena BillingFormModal sudah memiliki logikanya sendiri
-// Jika CustomModal ingin dipakai untuk konfirmasi hapus, perlu dipertahankan.
-// Asumsi: CustomModal digunakan hanya untuk konfirmasi hapus.
-
+/**
+ * Komponen Modal Kustom (digunakan untuk konfirmasi hapus).
+ */
 const CustomModal = ({ isOpen, onClose, title, children, footer, size = 'md' }) => {
     if (!isOpen) return null;
 
@@ -172,8 +175,10 @@ export default function BillingPage() {
             setProjekMap(map);
         } catch (err) {
             console.error("Gagal memuat data proyek master:", err);
+            // Tambahkan toast error jika gagal memuat data lookup juga penting
+            showToast('error', 'Gagal memuat data proyek.');
         }
-    }, [token]);
+    }, [token, showToast]);
 
     // --- Fetch Data Billing ---
     const fetchBilling = useCallback(async () => {
@@ -223,7 +228,8 @@ export default function BillingPage() {
             'success', 
             `Tagihan ID ${tagihanId} berhasil di${mode === 'add' ? 'tambahkan' : 'update'}.`
         );
-    }, [fetchBilling, showToast, dialogMode, selectedBilling]);
+        handleCloseModal(); // Tutup modal setelah sukses
+    }, [fetchBilling, showToast, dialogMode, selectedBilling, handleCloseModal]);
 
     // --- Delete Handler ---
     const confirmDeletion = useCallback((billing) => {
@@ -239,12 +245,13 @@ export default function BillingPage() {
                 headers: { Authorization: `Bearer ${token}` }
             });
             showToast('success', `Tagihan ID ${billing.BILLING_ID} berhasil dihapus.`);
+            // Update UI tanpa perlu fetch ulang seluruh data
             setBillingList((prev) => prev.filter((b) => b.BILLING_ID !== billing.BILLING_ID)); 
         } catch (err) {
             console.error("Gagal menghapus billing:", err);
             showToast('error', 'Gagal menghapus tagihan.');
         } finally {
-            setConfirmDeleteBilling(null);
+            setConfirmDeleteBilling(null); // Tutup modal konfirmasi
         }
     };
 
@@ -294,6 +301,7 @@ export default function BillingPage() {
     );
 
     // --- Definisi Kolom untuk CustomDataTable (Billing) ---
+    // Semua kolom yang didefinisikan sudah terpakai
     const columns = [
         { field: 'BILLING_ID', header: 'ID', style: { width: '60px' } },
         { 
@@ -405,15 +413,14 @@ export default function BillingPage() {
                 </div>
 
                 {/* Modal Form Billing */}
-                {/* Note: BillingFormModal sudah dipanggil dengan 'isOpen={dialogMode !== null}', tidak perlu prop 'projekData' lagi 
-                    karena modal sudah fetch sendiri, tapi kita biarkan dulu jika ada perbedaan implementasi. */}
                 <BillingFormModal
                     isOpen={dialogMode !== null}
                     onClose={handleCloseModal}
                     data={selectedBilling}
                     mode={dialogMode}
                     onSuccess={handleFormSuccess} // Trigger fetch data setelah sukses
-                    // projekData={projekDataList} // Prop ini kemungkinan tidak diperlukan jika modal fetch sendiri
+                    // Prop projekDataList diteruskan jika BillingFormModal memerlukannya
+                    projekData={projekDataList} 
                 />
 
                 {/* Modal Konfirmasi Hapus */}

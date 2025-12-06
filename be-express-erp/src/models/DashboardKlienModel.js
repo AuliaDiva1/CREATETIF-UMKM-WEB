@@ -1,16 +1,18 @@
-import { db } from '../core/config/knex.js'; // Sesuaikan path ke konfigurasi Knex Anda
+// File: src/models/DashboardKlienModel.js
 
-/**
- * MENCARI ID Klien berdasarkan USER_NAME (Nama Lengkap)
- * @param {string} username - USER_NAME (NAMA) Klien yang datanya akan diambil.
- * @returns {Promise<number|null>} ID Klien jika ditemukan, atau null.
- */
+import { db } from '../core/config/knex.js'; // Pastikan path Knex.js Anda benar
+
+const PROJEK_TABLE = 'transaksi_projek';
+const KLIEN_TABLE = 'master_klien';
+const BILLING_TABLE = 'transaksi_billing';
+
+// --- FUNGSI INTERNAL (Mencari ID dari Username) ---
+
 export const getKlienIdByUsername = async (username) => {
     try {
-        const result = await db('master_klien')
+        const result = await db(KLIEN_TABLE)
             .select('KLIEN_ID')
-            // ASUMSI: Kolom USER_NAME di database adalah 'NAMA' di tabel master_klien
-            .where('NAMA', username) 
+            .where('NAMA', username) // Asumsi kolom username adalah NAMA
             .first();
 
         return result ? result.KLIEN_ID : null;
@@ -20,16 +22,18 @@ export const getKlienIdByUsername = async (username) => {
     }
 };
 
+// --- FUNGSI RINGKASAN UTAMA (Semua Menerima: username) ---
+
 /**
- * Mengambil semua data yang diperlukan untuk dashboard Klien tertentu.
- * @param {number} klienId - ID Klien yang datanya akan diambil.
- * @returns {Promise<object>} Objek berisi ringkasan data dashboard.
+ * Mengambil semua data RINGKASAN PROYEK.
  */
-export const getKlienDashboardData = async (klienId) => {
+export const getKlienDashboardData = async (username) => {
     try {
-        // ... (KODE MODEL ASLI TETAP SAMA) ...
+        const klienId = await getKlienIdByUsername(username);
+        if (!klienId) throw new Error('Klien tidak ditemukan.'); 
+
         // 1. Ambil Ringkasan Data Proyek Klien
-        const ringkasanResult = await db('transaksi_projek')
+        const ringkasanResult = await db(PROJEK_TABLE)
             .select(
                 db.raw('COUNT(PROJEK_ID) as totalProjek'),
                 db.raw('SUM(NILAI_PROJEK) as totalNilaiProjek'),
@@ -38,42 +42,118 @@ export const getKlienDashboardData = async (klienId) => {
             )
             .where('KLIEN_ID', klienId)
             .first();
-
+        
         // 2. Ambil Daftar Proyek yang Sedang Berjalan (In Progress)
-        const proyekBerjalan = await db('transaksi_projek')
-            .select(
-                'PROJEK_ID as id',
-                'NAMA_PROJEK as namaProjek',
-                'PROGRESS as progress', 
-                'NILAI_PROJEK as nilaiProjek',
-                db.raw("DATE_FORMAT(TANGGAL_SELESAI, '%d %b %Y') as tanggalTargetSelesai")
-            )
+        const proyekBerjalan = await db(PROJEK_TABLE)
+            .select('PROJEK_ID as id', 'NAMA_PROJEK as namaProjek', 'NILAI_PROJEK as nilaiProjek', 'PROGRESS as progress', 'TANGGAL_SELESAI as tanggalTargetSelesai')
             .where('KLIEN_ID', klienId)
             .andWhere('STATUS', 'In Progress')
             .orderBy('TANGGAL_SELESAI', 'asc');
-
-        // 3. Ambil Detail Klien (Opsional, tapi berguna untuk header dashboard)
-        const detailKlien = await db('master_klien')
-            .select('NAMA as namaKlien', 'EMAIL')
+        
+        // 3. Ambil Detail Klien
+        const detailKlien = await db(KLIEN_TABLE)
+            .select('NAMA as namaKlien', 'EMAIL as emailKlien')
             .where('KLIEN_ID', klienId)
             .first();
 
-        // Mengembalikan semua data yang dibutuhkan controller
         return {
-            namaKlien: detailKlien ? detailKlien.namaKlien : null,
-            emailKlien: detailKlien ? detailKlien.EMAIL : null,
-            ringkasan: {
-                totalProjek: parseInt(ringkasanResult.totalProjek || 0, 10),
-                // Pastikan format nilai proyek tetap berupa angka di model
-                totalNilaiProjek: parseFloat(ringkasanResult.totalNilaiProjek || 0), 
-                proyekSelesai: parseInt(ringkasanResult.proyekSelesai || 0, 10),
-                proyekInProgress: parseInt(ringkasanResult.proyekInProgress || 0, 10),
-            },
+            namaKlien: detailKlien.namaKlien,
+            emailKlien: detailKlien.emailKlien,
+            ringkasan: ringkasanResult,
             proyekBerjalan: proyekBerjalan,
         };
 
     } catch (error) {
-        console.error('Error in DashboardKlienModel:', error);
+        console.error('Error in getKlienDashboardData:', error);
         throw new Error('Gagal mengambil data dasbor klien dari database.');
+    }
+};
+
+
+/**
+ * Mengambil total tagihan yang belum lunas (Outstanding) dan daftarnya.
+ * PERBAIKAN PENTING: Melakukan JOIN dengan transaksi_projek untuk memfilter berdasarkan KLIEN_ID.
+ */
+export const getKlienOutstandingBillingData = async (username) => {
+    try {
+        const klienId = await getKlienIdByUsername(username);
+        if (!klienId) throw new Error('Klien tidak ditemukan.');
+        
+        // 1. Ambil Total Outstanding
+        const outstandingResult = await db(BILLING_TABLE)
+            .join(PROJEK_TABLE, `${BILLING_TABLE}.PROJEK_ID`, '=', `${PROJEK_TABLE}.PROJEK_ID`) // JOIN
+            .select(
+                db.raw('SUM(JUMLAH_TAGIHAN) as totalOutstanding'),
+                db.raw('COUNT(BILLING_ID) as jumlahTagihanOutstanding')
+            )
+            .where(`${PROJEK_TABLE}.KLIEN_ID`, klienId) // Filter di tabel PROJEK
+            .andWhere(`${BILLING_TABLE}.TIPE_TRANSAKSI`, 'INVOICE')
+            .andWhere(`${BILLING_TABLE}.STATUS_TAGIHAN`, '!=', 'Paid') 
+            .first();
+
+        const totalOutstanding = parseFloat(outstandingResult.totalOutstanding || 0);
+
+        // 2. Ambil Daftar Invoice Outstanding
+        const outstandingInvoices = await db(BILLING_TABLE)
+            .join(PROJEK_TABLE, `${BILLING_TABLE}.PROJEK_ID`, '=', `${PROJEK_TABLE}.PROJEK_ID`)
+            .select(
+                'BILLING_ID as id',
+                'NOMOR_INVOICE as nomorInvoice',
+                'JUMLAH_TAGIHAN as jumlahTagihan',
+                db.raw("DATE_FORMAT(TANGGAL_JATUH_TEMPO, '%d %b %Y') as tanggalJatuhTempo"),
+                `${PROJEK_TABLE}.NAMA_PROJEK as namaProjek`
+            )
+            .where(`${PROJEK_TABLE}.KLIEN_ID`, klienId)
+            .andWhere(`${BILLING_TABLE}.TIPE_TRANSAKSI`, 'INVOICE')
+            .andWhere(`${BILLING_TABLE}.STATUS_TAGIHAN`, '!=', 'Paid')
+            .orderBy('TANGGAL_JATUH_TEMPO', 'asc');
+
+        return {
+            totalOutstanding: totalOutstanding,
+            jumlahTagihanOutstanding: parseInt(outstandingResult.jumlahTagihanOutstanding || 0, 10),
+            outstandingInvoices: outstandingInvoices,
+        };
+    } catch (error) {
+        console.error('Error in getKlienOutstandingBillingData:', error);
+        throw new Error('Gagal mengambil data tagihan tertunda.');
+    }
+};
+
+/**
+ * Mengambil total pembayaran dan menghitung saldo klien.
+ * PERBAIKAN PENTING: Melakukan JOIN dengan transaksi_projek untuk memfilter berdasarkan KLIEN_ID.
+ */
+export const getKlienFinancialSummary = async (username) => {
+    try {
+        const klienId = await getKlienIdByUsername(username);
+        if (!klienId) throw new Error('Klien tidak ditemukan.');
+        
+        // 1. Hitung Total Nilai Tagihan (INVOICE) yang Diterbitkan
+        const totalTagihanResult = await db(BILLING_TABLE)
+            .join(PROJEK_TABLE, `${BILLING_TABLE}.PROJEK_ID`, '=', `${PROJEK_TABLE}.PROJEK_ID`) 
+            .sum(`${BILLING_TABLE}.JUMLAH_TAGIHAN as total`)
+            .where(`${PROJEK_TABLE}.KLIEN_ID`, klienId) 
+            .andWhere(`${BILLING_TABLE}.TIPE_TRANSAKSI`, 'INVOICE')
+            .first();
+
+        // 2. Hitung Total Pembayaran Masuk
+        const totalPaymentResult = await db(BILLING_TABLE)
+             .join(PROJEK_TABLE, `${BILLING_TABLE}.PROJEK_ID`, '=', `${PROJEK_TABLE}.PROJEK_ID`) 
+            .sum(`${BILLING_TABLE}.JUMLAH_PEMBAYARAN as total`) 
+            .where(`${PROJEK_TABLE}.KLIEN_ID`, klienId) 
+            .andWhere(`${BILLING_TABLE}.JUMLAH_PEMBAYARAN`, '>', 0) 
+            .first();
+
+        const totalTagihanDiterbitkan = parseFloat(totalTagihanResult.total || 0);
+        const totalPembayaranMasuk = parseFloat(totalPaymentResult.total || 0);
+        const saldoKlien = totalPembayaranMasuk - totalTagihanDiterbitkan;
+
+        return {
+            totalPembayaran: totalPembayaranMasuk,
+            saldoKlien: saldoKlien,
+        };
+    } catch (error) {
+        console.error('Error in getKlienFinancialSummary:', error);
+        throw new Error('Gagal mengambil ringkasan finansial.');
     }
 };

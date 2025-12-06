@@ -1,9 +1,10 @@
+// File: src/app/dashboard/billing/page.tsx
+
 "use client";
 
 import React, { useEffect, useState } from "react";
 import {
     CircleDollarSign,
-    ListChecks,
     BadgeAlert, 
     CreditCard, 
     ChevronRight,
@@ -11,18 +12,22 @@ import {
 } from "lucide-react";
 
 // ASUMSI: Base URL API
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+// Menggunakan port 8100 sesuai kode Anda
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8100/api";
+const SUMMARY_ENDPOINT = "/dashboard-klien/klien/username"; 
+const OUTSTANDING_ENDPOINT = "/dashboard-klien/klien/username"; 
 
-// --- MOCK UTILS (Dibiarkan tetap sama) ---
+// --- MOCK UTILS & KOMPONEN BANTU ---
+// Asumsi: useRouter ini adalah mock atau berasal dari 'next/navigation'
 const useRouter = () => ({
     push: (path) => {
-        console.warn(`Redirect to: ${path}`);
+        console.warn(`Redirecting to: ${path}`);
     },
 });
 
-const SectionTitle = ({ title, paragraph, center, mb }) => (
+const SectionTitle = ({ title, paragraph, mb }) => (
     <div
-        className={`w-full ${center ? "mx-auto text-center" : "text-left"} ${
+        className={`w-full text-left ${
             mb || "mb-10"
         }`}
     >
@@ -47,17 +52,11 @@ const SkeletonCard = () => (
 
 const SkeletonInvoiceRow = () => (
     <div className="rounded-xl border bg-white p-6 shadow-sm animate-pulse">
-        <div className="flex justify-between items-center">
-            <div className="h-6 w-1/3 bg-gray-200 rounded mb-2"></div>
-            <div className="h-4 w-1/5 bg-gray-300 rounded"></div>
-        </div>
-        <div className="h-4 w-1/4 bg-gray-200 rounded mb-4"></div>
-        <div className="h-10 w-40 bg-indigo-200 rounded ml-auto"></div>
+        <div className="h-6 w-2/3 bg-gray-200 rounded mb-4"></div>
+        <div className="h-3 w-full bg-gray-200 rounded mb-3"></div>
+        <div className="h-10 w-40 bg-indigo-300 rounded ml-auto"></div>
     </div>
 );
-// -------------------------------------------------------------------
-
-// --- KOMPONEN BANTU REUSABLE (Dibiarkan tetap sama) ---
 
 const SummaryCard = ({ icon: Icon, title, value, className, subtitle }) => (
     <div className="rounded-xl border bg-white p-6 shadow-sm transition hover:shadow-md">
@@ -84,7 +83,7 @@ const SummaryCard = ({ icon: Icon, title, value, className, subtitle }) => (
     </div>
 );
 
-// --- KOMPONEN UTAMA ---
+// --- LOGIC UTAMA BILLING DASHBOARD ---
 
 const BillingDashboardPage = () => {
     const router = useRouter();
@@ -96,103 +95,119 @@ const BillingDashboardPage = () => {
     const [outstandingInvoices, setOutstandingInvoices] = useState([]);
 
     /**
-     * Mengambil data billing dari API
+     * Helper untuk memeriksa dan mem-parsing respons API
+     */
+    const checkAndParseResponse = async (res, defaultErrorMsg) => {
+        const contentType = res.headers.get("content-type");
+        if (res.status === 401) {
+            // Jika token kadaluarsa, arahkan ke signin
+            router.push("/signin");
+            throw new Error("Sesi berakhir. Silakan login kembali.");
+        }
+        if (!res.ok) {
+            if (contentType && contentType.includes("application/json")) {
+                const errorBody = await res.json();
+                throw new Error(errorBody.message || defaultErrorMsg);
+            } else {
+                throw new Error(`Gagal (Status ${res.status}).`);
+            }
+        }
+        return res.json();
+    };
+
+
+    /**
+     * Mengambil data billing dari API menggunakan username.
      */
     const fetchBillingData = async (username, token) => {
-        const apiUrl = `${API_BASE_URL}/billing-klien/klien/username/${username}`;
+        const headers = {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        };
 
-        const response = await fetch(apiUrl, {
-            method: "GET",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-            },
-        });
+        // Menggunakan USERNAME di URL
+        const summaryUrl = `${API_BASE_URL}${SUMMARY_ENDPOINT}/${username}/billing-summary`;
+        const outstandingUrl = `${API_BASE_URL}${OUTSTANDING_ENDPOINT}/${username}/outstanding`;
 
-        if (response.status === 401) {
-            // Jika token kadaluarsa atau tidak valid
-            router.push("/signin");
-            return null;
-        }
-
-        if (!response.ok) {
-            const errorBody = await response.json();
-            throw new Error(errorBody.message || "Gagal mengambil data billing");
-        }
-
-        const result = await response.json();
-        return result.data;
+        // Panggil kedua endpoint secara paralel
+        const [summaryResponse, outstandingResponse] = await Promise.all([
+             fetch(summaryUrl, { method: "GET", headers }),
+             fetch(outstandingUrl, { method: "GET", headers }),
+        ]);
+        
+        const summaryResult = await checkAndParseResponse(summaryResponse, "Gagal mengambil data ringkasan billing");
+        const outstandingResult = await checkAndParseResponse(outstandingResponse, "Gagal mengambil daftar tagihan tertunda");
+        
+        return { 
+            summary: summaryResult.data, 
+            outstandingInvoices: outstandingResult.data.outstandingInvoices || [] 
+        };
     };
 
     useEffect(() => {
         if (typeof window === "undefined") return;
 
         const token = localStorage.getItem("token");
-        // ASUMSI: Username Klien disimpan di USER_NAME setelah login
-        const storedName = localStorage.getItem("USER_NAME"); 
+        const storedName = localStorage.getItem("USER_NAME"); // Mengambil username
 
         if (!token || !storedName) {
             router.push("/signin");
             return;
         }
-
-        setUserName(storedName);
+        
+        // Panggilan setState ini memicu render, jika 'router' di dependency array
+        // berubah, maka useEffect akan dijalankan lagi, menyebabkan loop.
+        setUserName(storedName); 
 
         const loadData = async () => {
+            setLoading(true);
             try {
-                const data = await fetchBillingData(storedName, token);
+                const data = await fetchBillingData(storedName, token); // Menggunakan username
                 if (data) {
                     setSummary(data.summary);
-                    setOutstandingInvoices(data.outstandingInvoices || []);
+                    setOutstandingInvoices(data.outstandingInvoices);
                     setError(null);
                 }
             } catch (err) {
-                setError((err as Error).message || "Billing data could not be loaded.");
+                console.error("Fetch Error:", err);
+                setError(err.message || "Billing data could not be loaded.");
             } finally {
                 setLoading(false);
             }
         };
 
         loadData();
-    }, [router]);
+    }, []); // <--- PERBAIKAN: Menggunakan array kosong [] untuk memastikan hanya berjalan sekali
 
     // Data Summary default
     const dashSummary = summary || {
         totalOutstanding: "Rp0",
         totalPembayaran: "Rp0",
         saldoKlien: "Rp0",
-        jumlahTagihanOutstanding: 0,
+        jumlahTagihanOutstanding: outstandingInvoices.length,
     };
 
-    // Helper untuk menentukan status saldo
+    // Helper untuk menentukan status saldo dan subtitle
     const getSaldoSubtitle = (saldoKlien) => {
-        // --- LOGIKA PERBAIKAN SALDO ---
-        // 1. Cek langsung apakah string mengandung tanda negatif atau terutang.
-        if (saldoKlien.includes("-") || saldoKlien.includes("(")) {
+        if (saldoKlien.includes("-")) {
             return `Kekurangan Bayar / Terutang`;
         }
         
-        // 2. Jika tidak ada tanda negatif, coba cek apakah nilainya > 0
-        // Hapus semua karakter non-digit kecuali koma dan titik, lalu konversi
-        const cleanedSaldo = parseFloat(saldoKlien.replace(/[Rp\s]/g, "").replace(/\./g, "").replace(/,/g, "."));
+        const cleanedSaldo = parseFloat(saldoKlien.replace(/[Rp\s.,]/g, "").replace('-', ''));
         
-        if (isNaN(cleanedSaldo)) return "Data saldo tidak valid";
-
-        if (cleanedSaldo > 0) {
-            return "Kelebihan Bayar / Saldo Positif";
-        } else {
+        if (isNaN(cleanedSaldo) || cleanedSaldo === 0) {
             return "Saldo Seimbang (Rp0)";
         }
+        
+        return "Kelebihan Bayar / Saldo Positif";
     };
-    // -----------------------------
-
 
     const cards = [
         {
             icon: BadgeAlert,
             title: "Total Outstanding",
             value: dashSummary.totalOutstanding,
-            className: "bg-red-500",
+            className: "bg-red-600",
             subtitle: `${dashSummary.jumlahTagihanOutstanding} tagihan tertunda`,
         },
         {
@@ -206,18 +221,17 @@ const BillingDashboardPage = () => {
             icon: Wallet,
             title: "Saldo Klien",
             value: dashSummary.saldoKlien,
-            // Cek jika saldo mengandung tanda minus untuk menentukan warna
-            className: dashSummary.saldoKlien.includes("-") || dashSummary.saldoKlien.includes("(") ? "bg-red-700" : "bg-blue-600",
+            className: dashSummary.saldoKlien.includes("-") ? "bg-amber-600" : "bg-indigo-600",
             subtitle: getSaldoSubtitle(dashSummary.saldoKlien),
         },
     ];
 
     return (
-        <section className="pt-24 pb-16 px-6">
+        <section className="pt-24 pb-16 px-6 bg-gray-50 min-h-screen">
             
             {/* Header / Welcome */}
             <div className="mb-10">
-                <div className="rounded-xl bg-indigo-600 p-8 text-white shadow-sm">
+                <div className="rounded-xl bg-indigo-700 p-8 text-white shadow-lg">
                     <h1 className="text-3xl font-semibold">Billing Dashboard, {userName}</h1>
                     <p className="mt-2 text-base text-indigo-100">
                         Monitor tagihan, pembayaran, dan status saldo Anda.
@@ -225,12 +239,12 @@ const BillingDashboardPage = () => {
                 </div>
             </div>
 
-            {/* Account Summary Cards */}
+            <hr className="my-10" />
+            
+            {/* Financial Summary Cards */}
             <SectionTitle
                 title="Financial Summary"
-                paragraph={`Overview tagihan dan pembayaran hingga ${new Date().toLocaleDateString("id-ID")}`}
-                center={false} mb={"mb-8"}
-            />
+                paragraph={`Overview tagihan dan saldo per ${new Date().toLocaleDateString("id-ID")}`} mb={undefined}            />
 
             <div className="grid grid-cols-1 gap-6 md:grid-cols-3 mb-12">
                 {loading
@@ -240,26 +254,36 @@ const BillingDashboardPage = () => {
                       ))}
             </div>
             
-            {/* Active Projects (Outstanding Invoices) */}
+            <hr className="my-10" />
+            
+            {/* Outstanding Invoices List */}
             <SectionTitle
                 title="Outstanding Invoices"
-                paragraph="Daftar tagihan yang sudah jatuh tempo atau akan segera jatuh tempo."
-                center={false} mb={"mb-8"}
-            />
+                paragraph="Daftar tagihan yang sudah jatuh tempo atau akan segera jatuh tempo." mb={undefined}            />
 
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-6">
                 {loading ? (
                     [1, 2].map((i) => <SkeletonInvoiceRow key={i} />)
                 ) : error ? (
-                    <div className="p-6 rounded border bg-red-50 text-base text-red-600">
+                    <div className="p-6 rounded-lg border bg-red-50 text-base text-red-600">
                         {error}
                     </div>
                 ) : outstandingInvoices.length > 0 ? (
                     outstandingInvoices.map((invoice) => {
+                        // Logic untuk menentukan apakah tagihan jatuh tempo atau kadaluarsa
+                        const dueDate = new Date(invoice.tanggalJatuhTempo);
+                        const today = new Date();
+                        // Reset waktu untuk perbandingan tanggal saja
+                        dueDate.setHours(0, 0, 0, 0);
+                        today.setHours(0, 0, 0, 0);
+                        
+                        const isOverdue = dueDate < today;
+                        const borderClass = isOverdue ? "border-l-red-500" : "border-l-yellow-500";
+                        
                         return (
                             <div
                                 key={invoice.id}
-                                className="rounded-xl border border-l-4 border-l-yellow-500 bg-white p-6 shadow-sm transition hover:shadow-md"
+                                className={`rounded-xl border border-l-4 ${borderClass} bg-white p-6 shadow-sm transition hover:shadow-md`}
                             >
                                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                                     <div className="flex-1">
@@ -267,10 +291,9 @@ const BillingDashboardPage = () => {
                                             {invoice.nomorInvoice}
                                         </h3>
                                         <p className="text-sm text-gray-500">
-                                            Projek: <span className="font-medium text-gray-700">{invoice.namaProjek}</span>
+                                            Proyek: <span className="font-medium text-gray-700">{invoice.namaProjek}</span>
                                         </p>
-                                        {/* Tampilan jatuh tempo lebih tegas jika ada outstanding */}
-                                        <p className="text-sm text-red-500 font-medium mt-1">
+                                        <p className={`text-sm font-medium mt-1 ${isOverdue ? 'text-red-600' : 'text-amber-600'}`}>
                                             Jatuh Tempo: {invoice.tanggalJatuhTempo}
                                         </p>
                                     </div>
@@ -284,7 +307,7 @@ const BillingDashboardPage = () => {
                                             href={`/billing/invoice/${invoice.id}`}
                                             className="inline-flex items-center justify-center rounded bg-indigo-600 px-4 py-2 text-base font-medium text-white hover:bg-indigo-700"
                                         >
-                                            View & Pay
+                                            Lihat & Bayar
                                             <ChevronRight className="w-5 h-5 ml-1" />
                                         </a>
                                     </div>
@@ -294,7 +317,7 @@ const BillingDashboardPage = () => {
                     })
                 ) : (
                     <div className="p-8 rounded-lg border bg-green-50 text-base text-green-600">
-                        Hore! Tidak ada tagihan yang tertunda saat ini.
+                        🎉 Tidak ada tagihan yang tertunda saat ini.
                     </div>
                 )}
             </div>

@@ -4,10 +4,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
 import axios from 'axios';
-import { X, CheckCircle, AlertTriangle, Loader, Trash, DollarSign } from 'lucide-react'; 
+import { X, CheckCircle, AlertTriangle, Loader, Trash, DollarSign, CreditCard } from 'lucide-react'; 
 
 // Menggunakan variabel yang benar: API_BASE_URL
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL; 
+// Pastikan variabel ini diatur di file .env.local Anda
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api'; 
+
+// --- OPSI-OPSI DROPDOWN ---
 
 // Daftar opsi STATUS untuk dropdown
 const STATUS_OPTIONS = [
@@ -17,6 +20,17 @@ const STATUS_OPTIONS = [
     { value: 'Overdue', label: 'Overdue' },
     { value: 'Cancelled', label: 'Cancelled' },
 ];
+
+// Daftar opsi Metode Pembayaran
+const PAYMENT_METHOD_OPTIONS = [
+    { value: '', label: '-- Pilih Metode --' },
+    { value: 'Transfer Bank', label: 'Transfer Bank' },
+    { value: 'Kartu Kredit', label: 'Kartu Kredit' },
+    { value: 'Cash', label: 'Cash' },
+    { value: 'Lainnya', label: 'Lainnya' },
+];
+
+// --- FUNGSI UTILITY ---
 
 /**
  * Konversi tanggal dari format API (misalnya 2023-12-01 10:00:00) ke format input date (YYYY-MM-DD).
@@ -36,11 +50,13 @@ const formatDateForInput = (dateString) => {
 // Asumsi token dibutuhkan. Ambil token dari localStorage di sini.
 const getToken = () => {
     if (typeof window !== 'undefined') {
-        // Pastikan nama key token di localStorage sudah benar
+        // Ganti 'token' dengan nama key token yang benar di localStorage Anda
         return localStorage.getItem('token'); 
     }
     return null;
 };
+
+// --- KOMPONEN UTAMA ---
 
 const BillingFormModal = ({ isOpen, onClose, data, mode, onSuccess }) => {
     const [projekList, setProjekList] = useState([]); 
@@ -49,10 +65,11 @@ const BillingFormModal = ({ isOpen, onClose, data, mode, onSuccess }) => {
     const [message, setMessage] = useState(null); 
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false); 
     
-    const isEdit = mode === 'edit' || !!data?.BILLING_ID; 
+    // Tentukan apakah dalam mode Edit. Mode edit harus memiliki data.BILLING_ID
+    const isEdit = mode === 'edit' || (!!data && !!data.BILLING_ID); 
     const token = getToken();
 
-    // Efek untuk memuat daftar PROYEK
+    // Efek untuk memuat daftar PROYEK (Projek ID dibutuhkan untuk Billing)
     const fetchProjekList = useCallback(async () => {
         if (!token) {
             setProjekError('Token otorisasi tidak ditemukan.');
@@ -63,11 +80,13 @@ const BillingFormModal = ({ isOpen, onClose, data, mode, onSuccess }) => {
         setLoadingProjek(true);
         setProjekError(null);
         try {
+            // ASUMSI: Endpoint untuk mengambil daftar proyek
             const response = await axios.get(`${API_BASE_URL}/transaksi-projek`, { 
                 headers: { Authorization: `Bearer ${token}` }
             });
             
             const projekData = response.data.data || response.data || [];
+            // Filter proyek yang valid (memiliki ID dan Nama)
             setProjekList(projekData.filter(p => p.PROJEK_ID && p.NAMA_PROJEK));
         } catch (err) {
             console.error('Gagal memuat daftar Proyek:', err.response?.data || err.message);
@@ -87,20 +106,23 @@ const BillingFormModal = ({ isOpen, onClose, data, mode, onSuccess }) => {
 
     if (!isOpen) return null;
 
-    // Nilai awal form
+    // Nilai awal form. Perhatikan pemetaan nama field form ke kolom DB!
     const initialValues = {
+        // Field Utama (Mapping ke DB: tb.PROJEK_ID)
         projek_id: data?.PROJEK_ID?.toString() || '',
-        // NOMOR_BILLING (Di form) sesuai dengan NOMOR_INVOICE di DB
-        nomor_billing: data?.NOMOR_INVOICE || '', 
-        // DESKRIPSI (Di form) sesuai dengan CATATAN di DB
-        deskripsi: data?.CATATAN || '',
-        // NILAI_BILLING (Di form) sesuai dengan JUMLAH_TAGIHAN di DB
-        nilai_billing: data?.JUMLAH_TAGIHAN?.toString() || '',
-        // Field TANGGAL_BILLING tidak ada di DB, tapi dipertahankan untuk form experience
-        tanggal_billing: formatDateForInput(data?.TANGGAL_BILLING) || formatDateForInput(new Date().toISOString()),
-        tanggal_jatuh_tempo: formatDateForInput(data?.TANGGAL_JATUH_TEMPO) || '',
-        // STATUS (Di form) sesuai dengan STATUS_TAGIHAN di DB
-        status: data?.STATUS_TAGIHAN || STATUS_OPTIONS[0].value, 
+        nomor_billing: data?.NOMOR_INVOICE || '', // Mapping ke DB: tb.NOMOR_INVOICE
+        nilai_billing: data?.JUMLAH_TAGIHAN?.toString() || '', // Mapping ke DB: tb.JUMLAH_TAGIHAN
+        deskripsi: data?.CATATAN || '', // Mapping ke DB: tb.CATATAN (Catatan Invoice)
+        status: data?.STATUS_TAGIHAN || STATUS_OPTIONS[0].value, // Mapping ke DB: tb.STATUS_TAGIHAN
+        
+        // Field Tanggal
+        // TANGGAL_BILLING adalah field form, dibuat secara default ke created_at/tanggal hari ini jika tidak ada
+        tanggal_billing: formatDateForInput(data?.created_at) || formatDateForInput(new Date().toISOString()), 
+        tanggal_jatuh_tempo: formatDateForInput(data?.TANGGAL_JATUH_TEMPO) || '', // Mapping ke DB: tb.TANGGAL_JATUH_TEMPO
+
+        // Field Pembayaran (Opsional/Hanya diisi jika mencatat pembayaran di form yang sama/mode edit)
+        jumlah_pembayaran: data?.JUMLAH_PEMBAYARAN?.toString() || '', // Mapping ke DB: tb.JUMLAH_PEMBAYARAN
+        metode_pembayaran: data?.METODE_PEMBAYARAN || '', // Mapping ke DB: tb.METODE_PEMBAYARAN
     };
 
     // Schema Validasi dengan Yup
@@ -111,13 +133,26 @@ const BillingFormModal = ({ isOpen, onClose, data, mode, onSuccess }) => {
         nilai_billing: Yup.number()
             .transform((value, originalValue) => (originalValue === '' ? undefined : value))
             .typeError('Nilai Billing harus berupa angka')
-            .min(0, 'Nilai Billing tidak boleh negatif')
+            .min(1, 'Nilai Billing harus lebih dari 0') // Tagihan harus > 0
             .required('Nilai Billing wajib diisi'),
-        tanggal_billing: Yup.date().required('Tanggal Billing wajib diisi'),
+        tanggal_billing: Yup.date().required('Tanggal Billing wajib diisi'), // Diambil dari created_at
         tanggal_jatuh_tempo: Yup.date()
             .nullable()
             .min(Yup.ref('tanggal_billing'), 'Jatuh Tempo tidak boleh mendahului Tanggal Billing'),
         status: Yup.string().oneOf(STATUS_OPTIONS.map(o => o.value), 'Status tidak valid').required('Status wajib diisi'),
+        
+        // Validasi Pembayaran (Opsional)
+        jumlah_pembayaran: Yup.number()
+             .transform((value, originalValue) => (originalValue === '' ? undefined : value))
+             .nullable()
+             .min(0, 'Jumlah Pembayaran tidak boleh negatif')
+             .max(Yup.ref('nilai_billing'), 'Pembayaran tidak boleh melebihi Tagihan'),
+        metode_pembayaran: Yup.string()
+             .nullable()
+             .when('jumlah_pembayaran', {
+                 is: (val) => val > 0, // Jika ada jumlah pembayaran, Metode harus diisi
+                 then: (schema) => schema.required('Metode Pembayaran wajib diisi jika ada Jumlah Pembayaran.'),
+             }),
     });
 
     const handleSubmit = async (values, actions) => {
@@ -132,15 +167,22 @@ const BillingFormModal = ({ isOpen, onClose, data, mode, onSuccess }) => {
         // 💡 Payload AKHIR disesuaikan dengan skema tabel DB
         const finalPayload = {
             PROJEK_ID: parseInt(values.projek_id),
-            // Wajib diisi: INVOICE karena ini formulir tagihan
+            // Wajib diisi: INVOICE karena ini formulir tagihan/invoice
             TIPE_TRANSAKSI: 'INVOICE', 
-            // Mapping field form ke DB
+            
+            // Kolom Billing/Invoice
             NOMOR_INVOICE: values.nomor_billing, 
             JUMLAH_TAGIHAN: parseFloat(values.nilai_billing),
             TANGGAL_JATUH_TEMPO: values.tanggal_jatuh_tempo || null,
             STATUS_TAGIHAN: values.status,
-            CATATAN: values.deskripsi || null, 
-            // TANGGAL_BILLING tidak dikirim karena tidak ada kolom di DB
+            CATATAN: values.deskripsi || null, // CATATAN digunakan untuk deskripsi invoice
+            
+            // Kolom Pembayaran (Opsional, hanya dikirim jika ada nilai)
+            JUMLAH_PEMBAYARAN: values.jumlah_pembayaran ? parseFloat(values.jumlah_pembayaran) : 0,
+            METODE_PEMBAYARAN: values.metode_pembayaran || null,
+
+            
+            // Note: created_at dan updated_at ditangani oleh fungsi di server
         };
 
         console.log("Final Payload Billing yang dikirim:", finalPayload);
@@ -169,9 +211,8 @@ const BillingFormModal = ({ isOpen, onClose, data, mode, onSuccess }) => {
                 setMessage({ type: 'success', text: 'Billing baru berhasil ditambahkan!' });
             }
 
-            // 💡 Perbaikan: Mengirim data (ID baru) setelah POST
             setTimeout(() => {
-                // Pastikan response.data.data adalah objek yang berisi BILLING_ID
+                // response.data.data berisi objek billing yang baru dibuat/diperbarui
                 if (onSuccess) onSuccess(response.data.data); 
                 onClose();
             }, 1500);
@@ -214,18 +255,12 @@ const BillingFormModal = ({ isOpen, onClose, data, mode, onSuccess }) => {
         setMessage(null);
         setShowDeleteConfirm(false); 
         
-        if (!token) {
-            setMessage({ type: 'error', text: 'Gagal: Token otorisasi tidak ditemukan.' });
-            return;
-        }
-
-        if (!data?.BILLING_ID) { 
-            setMessage({ type: 'error', text: 'Gagal: BILLING_ID tidak ditemukan untuk operasi hapus.' });
+        if (!token || !data?.BILLING_ID) {
+            setMessage({ type: 'error', text: 'Gagal: ID Billing atau Token otorisasi tidak ditemukan.' });
             return;
         }
 
         const url = `${API_BASE_URL}/transaksi-billing/${data.BILLING_ID}`; 
-        console.log("URL DELETE:", url);
 
         try {
             const config = {
@@ -242,12 +277,9 @@ const BillingFormModal = ({ isOpen, onClose, data, mode, onSuccess }) => {
             }, 1500);
 
         } catch (err) {
+            // ... (Kode penanganan error DELETE sama dengan sebelumnya)
             const status = err.response?.status;
             const responseData = err.response?.data;
-            
-            console.error('API Error Status (DELETE):', status);
-            console.error('API Response Data (DELETE):', responseData);
-            
             let msg;
             
             if (responseData && responseData.message) {
@@ -338,10 +370,14 @@ const BillingFormModal = ({ isOpen, onClose, data, mode, onSuccess }) => {
                         onSubmit={handleSubmit}
                         enableReinitialize={true} 
                     >
-                        {({ isSubmitting }) => (
+                        {({ isSubmitting, values, setFieldValue }) => (
                             <Form className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {/* Kolom Kiri */}
-                                <div className="col-span-1">
+                                {/* Kolom Kiri: Detail Billing/Invoice */}
+                                <div className="col-span-1 md:border-r md:pr-6">
+                                    <h4 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                                        <DollarSign className="w-5 h-5 mr-2 text-blue-600" /> Detail Invoice
+                                    </h4>
+                                    
                                     {/* PROJEK_ID (Dropdown) */}
                                     <div className="mb-4">
                                         <label htmlFor="projek_id" className="block text-sm font-semibold text-gray-700">Proyek Terkait <span className="text-red-500">*</span></label>
@@ -351,7 +387,7 @@ const BillingFormModal = ({ isOpen, onClose, data, mode, onSuccess }) => {
 
                                     {/* NOMOR_BILLING */}
                                     <div className="mb-4">
-                                        <label htmlFor="nomor_billing" className="block text-sm font-semibold text-gray-700">Nomor Billing <span className="text-red-500">*</span></label>
+                                        <label htmlFor="nomor_billing" className="block text-sm font-semibold text-gray-700">Nomor Invoice <span className="text-red-500">*</span></label>
                                         <Field
                                             id="nomor_billing"
                                             name="nomor_billing"
@@ -364,7 +400,7 @@ const BillingFormModal = ({ isOpen, onClose, data, mode, onSuccess }) => {
 
                                     {/* NILAI_BILLING */}
                                     <div className="mb-4">
-                                        <label htmlFor="nilai_billing" className="block text-sm font-semibold text-gray-700">Nilai Billing (Rp) <span className="text-red-500">*</span></label>
+                                        <label htmlFor="nilai_billing" className="block text-sm font-semibold text-gray-700">Nilai Tagihan (Rp) <span className="text-red-500">*</span></label>
                                         <div className="flex items-center mt-1">
                                             <span className="inline-flex items-center px-3 text-gray-500 bg-gray-50 border border-r-0 border-gray-300 rounded-l-lg text-sm">
                                                 Rp
@@ -380,14 +416,32 @@ const BillingFormModal = ({ isOpen, onClose, data, mode, onSuccess }) => {
                                         </div>
                                         <ErrorMessage name="nilai_billing" component="small" className="text-red-500 text-xs mt-1 block" />
                                     </div>
+                                    
+                                    {/* DESKRIPSI (Menjadi CATATAN di payload) */}
+                                    <div className="mb-4">
+                                        <label htmlFor="deskripsi" className="block text-sm font-semibold text-gray-700">Deskripsi/Catatan Invoice</label>
+                                        <Field
+                                            as="textarea"
+                                            id="deskripsi"
+                                            name="deskripsi"
+                                            rows="4"
+                                            className="w-full mt-1 p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150"
+                                            placeholder="Detail singkat tentang billing atau item-item yang di-billing..."
+                                        />
+                                        <ErrorMessage name="deskripsi" component="small" className="text-red-500 text-xs mt-1 block" />
+                                    </div>
                                 </div>
 
-                                {/* Kolom Kanan */}
+                                {/* Kolom Kanan: Status & Pembayaran */}
                                 <div className="col-span-1">
+                                    <h4 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                                        <CreditCard className="w-5 h-5 mr-2 text-blue-600" /> Status & Pembayaran
+                                    </h4>
+                                    
                                     <div className="grid grid-cols-2 gap-4">
                                         {/* TANGGAL_BILLING */}
                                         <div className="mb-4">
-                                            <label htmlFor="tanggal_billing" className="block text-sm font-semibold text-gray-700">Tanggal Billing <span className="text-red-500">*</span></label>
+                                            <label htmlFor="tanggal_billing" className="block text-sm font-semibold text-gray-700">Tanggal Invoice <span className="text-red-500">*</span></label>
                                             <Field
                                                 id="tanggal_billing"
                                                 name="tanggal_billing"
@@ -427,20 +481,68 @@ const BillingFormModal = ({ isOpen, onClose, data, mode, onSuccess }) => {
                                         </Field>
                                         <ErrorMessage name="status" component="small" className="text-red-500 text-xs mt-1 block" />
                                     </div>
+                                    
+                                    <h5 className="text-md font-bold text-gray-700 mt-6 mb-3 border-t pt-4">Input Pembayaran (Opsional)</h5>
 
-                                    {/* DESKRIPSI (Menjadi CATATAN di payload) */}
+                                    {/* JUMLAH_PEMBAYARAN */}
                                     <div className="mb-4">
-                                        <label htmlFor="deskripsi" className="block text-sm font-semibold text-gray-700">Deskripsi/Catatan</label>
+                                        <label htmlFor="jumlah_pembayaran" className="block text-sm font-semibold text-gray-700">Jumlah Pembayaran Diterima (Rp)</label>
+                                        <div className="flex items-center mt-1">
+                                            <span className="inline-flex items-center px-3 text-gray-500 bg-gray-50 border border-r-0 border-gray-300 rounded-l-lg text-sm">
+                                                Rp
+                                            </span>
+                                            <Field
+                                                id="jumlah_pembayaran"
+                                                name="jumlah_pembayaran"
+                                                type="number"
+                                                step="0.01"
+                                                className="flex-1 p-3 border border-gray-300 rounded-r-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150"
+                                                placeholder="Biarkan kosong jika belum ada pembayaran"
+                                            />
+                                        </div>
+                                        <ErrorMessage name="jumlah_pembayaran" component="small" className="text-red-500 text-xs mt-1 block" />
+                                        {/* Peringatan jika status adalah 'Paid' tetapi jumlah pembayaran 0 */}
+                                        {values.status === 'Paid' && !values.jumlah_pembayaran && (
+                                            <small className="text-orange-500 text-xs mt-1 block">💡 Status 'Paid' dipilih, tetapi Jumlah Pembayaran 0. Harap isi jumlahnya.</small>
+                                        )}
+                                    </div>
+
+                                    {/* METODE_PEMBAYARAN */}
+                                    <div className="mb-4">
+                                        <label htmlFor="metode_pembayaran" className="block text-sm font-semibold text-gray-700">Metode Pembayaran</label>
+                                        <Field
+                                            as="select"
+                                            id="metode_pembayaran"
+                                            name="metode_pembayaran"
+                                            className="w-full mt-1 p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white transition duration-150"
+                                            // Disabled jika Jumlah Pembayaran 0
+                                            disabled={!values.jumlah_pembayaran && values.jumlah_pembayaran !== 0}
+                                        >
+                                            {PAYMENT_METHOD_OPTIONS.map(option => (
+                                                <option key={option.value} value={option.value}>
+                                                    {option.label}
+                                                </option>
+                                            ))}
+                                        </Field>
+                                        <ErrorMessage name="metode_pembayaran" component="small" className="text-red-500 text-xs mt-1 block" />
+                                    </div>
+                                    
+                                    {/* ✅ TAMBAHKAN: CATATAN_PEMBAYARAN */}
+                                    <div className="mb-4 col-span-2"> 
+                                        <label htmlFor="catatan_pembayaran" className="block text-sm font-semibold text-gray-700">Catatan Pembayaran (Misal: Ref. Bank)</label>
                                         <Field
                                             as="textarea"
-                                            id="deskripsi"
-                                            name="deskripsi"
-                                            rows="4"
+                                            id="catatan_pembayaran"
+                                            name="catatan_pembayaran"
+                                            rows="2"
                                             className="w-full mt-1 p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150"
-                                            placeholder="Detail singkat tentang billing atau item-item yang di-billing..."
+                                            placeholder="Nomor referensi bank, detail transfer, atau catatan khusus pembayaran."
+                                            // Disabled jika tidak ada jumlah pembayaran
+                                            disabled={!values.jumlah_pembayaran && values.jumlah_pembayaran !== 0}
                                         />
-                                        <ErrorMessage name="deskripsi" component="small" className="text-red-500 text-xs mt-1 block" />
+                                        <ErrorMessage name="catatan_pembayaran" component="small" className="text-red-500 text-xs mt-1 block" />
                                     </div>
+                                    
                                 </div>
 
                                 {/* Footer Buttons (Full Width) */}
@@ -493,22 +595,20 @@ const BillingFormModal = ({ isOpen, onClose, data, mode, onSuccess }) => {
                             <AlertTriangle className="w-12 h-12 text-red-500 mb-4" />
                             <h4 className="text-xl font-bold text-red-700 mb-2">Konfirmasi Penghapusan</h4>
                             <p className="text-gray-600 text-center mb-6">
-                                Apakah Anda yakin ingin menghapus billing **{initialValues.nomor_billing}**? Tindakan ini tidak dapat dibatalkan.
+                                Apakah Anda yakin ingin menghapus Billing **{data?.NOMOR_INVOICE || 'ini'}**? Tindakan ini tidak dapat dibatalkan.
                             </p>
                             <div className="flex gap-4">
                                 <button
-                                    type="button"
                                     onClick={() => setShowDeleteConfirm(false)}
-                                    className="px-6 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition"
+                                    className="px-6 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition duration-150"
                                 >
                                     Batal
                                 </button>
                                 <button
-                                    type="button"
                                     onClick={handleDelete}
-                                    className="px-6 py-2 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 transition"
+                                    className="px-6 py-2 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 transition duration-150 flex items-center"
                                 >
-                                    Ya, Hapus Permanen
+                                    <Trash className="w-4 h-4 mr-2" /> Ya, Hapus Permanen
                                 </button>
                             </div>
                         </div>
